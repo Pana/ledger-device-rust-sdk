@@ -6,7 +6,7 @@ static API_LEVEL: u8 = if cfg!(target_os = "nanos") {
 } else if cfg!(target_os = "nanox") {
     5
 } else if cfg!(target_os = "nanosplus") {
-    1
+    5
 } else {
     0xff
 };

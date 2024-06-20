@@ -1,8 +1,14 @@
+use alloc::format;
 use const_zero::const_zero;
 use core::ffi::{c_char, CStr};
 use core::mem::transmute;
 use ledger_secure_sdk_sys::*;
 use num_traits::ops::overflowing::OverflowingAdd;
+
+extern crate alloc;
+use alloc::ffi::CString;
+
+use crate::testing;
 
 pub struct NbglGlyph<'a> {
     pub width: u16,
@@ -57,22 +63,49 @@ impl<'a> Into<nbgl_icon_details_t> for &NbglGlyph<'a> {
     }
 }
 
-pub unsafe extern "C" fn on_action_callback(token: u32, index: u8) {
-    return;
+pub unsafe extern "C" fn on_action_callback(token: ::core::ffi::c_int, index: u8) {
+    testing::debug_print("Tap !!! \n");
+    testing::debug_print(format!("token: {}\n", token).as_str());
+    ledger_secure_sdk_sys::exit_app(0);
 }
 
-fn display_glyph(glyph: &NbglGlyph) {
-    let tap_action_text = "Tap to continue";
+pub fn display<'a>(glyph: &'a NbglGlyph) {
+    let tap_action_text = CString::new("Tap to continue").unwrap();
+
+    let text = CString::new("Hello, world!").unwrap();
 
     unsafe {
+        testing::debug_print("display\n");
         let mut description: nbgl_layoutDescription_t = nbgl_layoutDescription_t::default();
+        description.modal = false;
         description.tapActionText = tap_action_text.as_ptr() as *const c_char;
         description.tapActionToken = 1;
         description.tapTuneId = TUNE_NEUTRAL;
-        description.onActionCallback = None;
-        let layout = nbgl_layoutGet(&description);
+        description.onActionCallback = Some(on_action_callback);
 
-        nbgl_layoutDraw(layout);
+        let layout = nbgl_layoutGet(&description);
+        testing::debug_print(format!("layout: {:?}\n", layout).as_str());
+
+        let icon = glyph.into();
+
+        let centered_info: nbgl_contentCenteredInfo_t = nbgl_contentCenteredInfo_t {
+            icon: &icon,
+            text1: text.as_ptr() as *const c_char,
+            text2: text.as_ptr() as *const c_char,
+            text3: core::ptr::null(),
+            onTop: false,
+            style: LARGE_CASE_BOLD_INFO,
+            offsetY: 0,
+        };
+
+        nbgl_layoutAddCenteredInfo(layout, &centered_info);
+
+        let ret = nbgl_layoutDraw(layout);
+        nbgl_refresh();
+        if ret != 0 {
+            testing::debug_print("display error\n");
+        }
+        testing::debug_print("display end\n");
     }
 }
 
@@ -107,5 +140,16 @@ impl TryFrom<u8> for TuneIndex {
             TUNE_TAP_NEXT => TuneIndex::TapNext,
             _ => return Err(()),
         })
+    }
+}
+
+// this is a mock that does nothing yet, but should become a direct translation
+// of the C original. This was done to avoid compiling `os_io_seproxyhal.c` which
+// includes many other things
+#[no_mangle]
+extern "C" fn io_seproxyhal_play_tune(tune_index: u8) {
+    let index = TuneIndex::try_from(tune_index);
+    if index.is_err() {
+        return;
     }
 }

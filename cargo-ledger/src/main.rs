@@ -335,13 +335,6 @@ fn build_app(
     }
     serde_json::to_writer_pretty(file, &json).unwrap();
 
-    // Copy icon to the same directory as the app.json
-    let icon_path = package_path.join(&metadata_device.icon);
-    let icon_dest =
-        exe_parent.join(&metadata_device.icon.split('/').last().unwrap());
-
-    fs::copy(icon_path, icon_dest).unwrap();
-
     // Use ledgerctl to dump the APDU installation file.
     // Either dump to the location provided by the --out-dir cargo
     // argument if provided or use the default binary path.
